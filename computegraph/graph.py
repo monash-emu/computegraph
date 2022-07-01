@@ -2,14 +2,14 @@ from typing import Callable, Any, Optional, List
 
 import networkx as nx
 
-from .types import Variable, GraphLocal, Function, Parameter, GraphDict
+from .types import Variable, Function, GraphDict
 
 """
 Graph building functions
 """
 
 
-def build_dag(graph_dict: GraphDict) -> nx.DiGraph:
+def build_dag(graph_dict: GraphDict, local_source_name="graph_locals") -> nx.DiGraph:
     """Build a DiGraph from the supplied GraphDict
 
     Args:
@@ -21,11 +21,11 @@ def build_dag(graph_dict: GraphDict) -> nx.DiGraph:
     dag = nx.digraph.DiGraph()
     for name, node_spec in graph_dict.items():
         dag.add_node(name, node_spec=node_spec)
-    trace_edges(dag)
+    trace_edges(dag, local_source_name)
     return dag
 
 
-def trace_edges(dag: nx.DiGraph):
+def trace_edges(dag: nx.DiGraph, local_source_name="graph_locals"):
     """Trace the DAG and create the appropriate edges (in-place)
 
     Args:
@@ -53,11 +53,11 @@ def trace_edges(dag: nx.DiGraph):
         node_spec = dag.nodes[node]["node_spec"]
         if isinstance(node_spec, Function):
             for a in node_spec.args:
-                if isinstance(a, GraphLocal):
+                if isinstance(a, Variable) and (a.source == local_source_name):
                     source_node = find_source_node(dag, a)
                     dag.add_edge(source_node, node)
             for k, v in node_spec.kwargs.items():
-                if isinstance(v, GraphLocal):
+                if isinstance(a, Variable) and (a.source == local_source_name):
                     # We have a nested key
                     source_node = find_source_node(dag, v)
                     dag.add_edge(source_node, node)
@@ -68,7 +68,7 @@ Operations over built DiGraphs
 """
 
 
-def build_callable(dag: nx.DiGraph) -> Callable[[dict], Any]:
+def build_callable(dag: nx.DiGraph, local_source_name="graph_locals") -> Callable[[dict], Any]:
     """Returns a callable Python function corresponding to this graph
 
     Args:
@@ -79,15 +79,16 @@ def build_callable(dag: nx.DiGraph) -> Callable[[dict], Any]:
         The corresponding Python function for this graph
     """
 
-    def compute_from_params(parameters: dict):
+    def compute_from_params(**kwargs):
         out_p = {}
         ggen = nx.topological_sort(dag)
+        sources = kwargs
         for node in ggen:
             node_spec = dag.nodes[node]["node_spec"]
-            if isinstance(node_spec, Parameter):
-                out_p[node] = parameters[node_spec.name]
+            if isinstance(node_spec, Variable):
+                out_p[node] = kwargs[node_spec.source][node_spec.name]
             elif isinstance(node_spec, Function):
-                sources = {"graph_locals": out_p, "parameters": parameters}
+                sources.update({local_source_name: out_p})
                 out_p[node] = node_spec.call(sources)
             else:
                 raise Exception("Unsupported node type", node, node_spec, type(node_spec))
@@ -112,7 +113,7 @@ def draw_graph(dag: nx.DiGraph, targets: Optional[List[str]] = None):
         targets = []
 
     def get_color(name, param):
-        if isinstance(param, Parameter):
+        if isinstance(param, Variable):
             return "lightgreen"
         elif name in targets:
             return "#ee88ee"
@@ -131,16 +132,17 @@ Object Oriented Wrappers
 class ComputeGraph:
     """A thin object oriented wrapper around the graph management functions"""
 
-    def __init__(self, graph_dict: dict):
+    def __init__(self, graph_dict: dict, local_source_name="graph_locals"):
         """Build a fully traced DiGraph from the supplied dict
 
         Args:
             graph_dict: A dict with keys as node names, and arguments of
         """
-        self.dag = build_dag(graph_dict)
+        self.dag = build_dag(graph_dict, local_source_name)
+        self.local_source_name = local_source_name
 
     def draw(self, targets=None):
         return draw_graph(self.dag, targets)
 
     def get_callable(self) -> Callable[[dict], Any]:
-        return build_callable(self.dag)
+        return build_callable(self.dag, self.local_source_name)

@@ -11,7 +11,6 @@ class Variable:
     They are identifiable via their name (unique to a given source),
     and their source, which is a user definable lookup for dictionaries
     of arguments passed to functions.
-    There are 2 reserved sources with special types below; 'parameters' and 'graph_locals'
     """
 
     def __init__(self, name: str, source: str):
@@ -28,28 +27,16 @@ class Variable:
         return (self.name == other.name) and (self.source == other.source)
 
 
-class Parameter(Variable):
-    """Special type indicating a variable that will be passed in to the parameters
-    dictionary of the callable function produced by a computegraph.Graph
+def local(name: str) -> Variable:
+    """Convenience function for returning a graph_locals variable
+
+    Args:
+        name: Variable Name
+
+    Returns:
+        Variable with source "graph_locals" (default graph locals lookup dict)
     """
-
-    def __init__(self, name: str):
-        super().__init__(name, "parameters")
-
-    def __repr__(self):
-        return f"Parameter {self.name}"
-
-
-class GraphLocal(Variable):
-    """Special type indicating a variable that is found locally
-    in some part of the computegraph.Graph that we are currently operating on
-    """
-
-    def __init__(self, name: str):
-        super().__init__(name, "graph_locals")
-
-    def __repr__(self):
-        return f"GraphLocal {self.name}"
+    return Variable(name, source="graph_locals")
 
 
 class Function:
@@ -86,5 +73,5 @@ class Function:
 
 
 # Declare some derived types for annotation purposes
-NodeSpec = Union[Parameter, Function]
+NodeSpec = Union[Variable, Function]
 GraphDict = Dict[str, NodeSpec]
