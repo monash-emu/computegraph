@@ -24,6 +24,6 @@ jobs:
       - name: Setup Graphviz
         uses: ts-graphviz/setup-graphviz@v1
       - name: Install Python dependencies
-        run: poetry install
+        run: poetry install --extras "plotting"
       - name: Run tests
         run: poetry run pytest --workers 2 -W ignore -vv -m "not benchmark"
