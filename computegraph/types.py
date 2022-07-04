@@ -39,6 +39,18 @@ def local(name: str) -> Variable:
     return Variable(name, source="graph_locals")
 
 
+def param(name: str) -> Variable:
+    """Convenience function for returning a parameters variable
+
+    Args:
+        name: Variable Name
+
+    Returns:
+        Variable with source "parameters"
+    """
+    return Variable(name, source="parameters")
+
+
 class Function:
     """Universal wrapper for callable functions, whose args and kwargs
     may be either Variables (resolved at run-time), or any other Python value

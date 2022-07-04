@@ -1,0 +1,31 @@
+name: Automated Tests
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7.1
+      - name: Setup Poetry package manager
+        uses: abatilo/actions-poetry@v2.0.0
+        with:
+          poetry-version: 1.1.8
+      - name: Install Python dependencies
+        run: poetry install
+      - name: Setup Graphviz
+        uses: ts-graphviz/setup-graphviz@v1
+      - name: Setup PyGraphviz
+        run: pip install pygraphviz
+      - name: Run tests
+        run: poetry run pytest --workers 2 -W ignore -vv -m "not benchmark"
