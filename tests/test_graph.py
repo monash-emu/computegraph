@@ -86,3 +86,37 @@ def test_build_and_draw_graph():
     pop_graph = ComputeGraph(pop_dict)
 
     pop_graph.draw()
+
+
+def test_jax_jit():
+    from jax import jit
+
+    jdict = {}
+    jdict["x"] = param("x")
+    jdict["y"] = param("y")
+    jdict["out"] = Function(lambda x, y: x * y, [local("x"), local("y")])
+
+    jgraph = ComputeGraph(jdict)
+    fcall = jit(jgraph.get_callable())
+
+    results = fcall(parameters={"x": 2.0, "y": 5.0})
+
+    assert results["out"] == 10.0
+
+
+def test_jax_jit_nested():
+    from jax import jit
+
+    jdict = {}
+    jdict["x"] = param("x")
+    jdict["y"] = param("y")
+    jdict["out"] = Function(lambda x, y: x * y, [local("x"), local("y")])
+
+    nested_jdict = get_nested_graph_dict(jdict, "nested")
+
+    jgraph = ComputeGraph(nested_jdict)
+    fcall = jit(jgraph.get_callable(nested_params=True))
+
+    results = fcall(parameters={"nested": {"x": 2.0, "y": 5.0}})
+
+    assert results["nested.out"] == 10.0
