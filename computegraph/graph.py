@@ -1,8 +1,10 @@
-from typing import Callable, Any, Optional, List
+from typing import Callable, Any
 
 import networkx as nx
 
 from .types import Variable, Function, GraphDict
+from .draw import draw_compute_graph
+from .utils import expand_nested_dict
 
 """
 Graph building functions
@@ -68,7 +70,9 @@ Operations over built DiGraphs
 """
 
 
-def build_callable(dag: nx.DiGraph, local_source_name="graph_locals") -> Callable[[dict], Any]:
+def build_callable(
+    dag: nx.DiGraph, local_source_name="graph_locals", nested_params=False
+) -> Callable[[dict], Any]:
     """Returns a callable Python function corresponding to this graph
 
     Args:
@@ -82,11 +86,18 @@ def build_callable(dag: nx.DiGraph, local_source_name="graph_locals") -> Callabl
     def compute_from_params(**kwargs):
         out_p = {}
         ggen = nx.topological_sort(dag)
-        sources = kwargs
+
+        if nested_params:
+            sources = {}
+            for k, v in kwargs.items():
+                sources[k] = expand_nested_dict(v, include_parents=True)
+        else:
+            sources = kwargs.copy()
+
         for node in ggen:
             node_spec = dag.nodes[node]["node_spec"]
             if isinstance(node_spec, Variable):
-                out_p[node] = kwargs[node_spec.source][node_spec.name]
+                out_p[node] = sources[node_spec.source][node_spec.name]
             elif isinstance(node_spec, Function):
                 sources.update({local_source_name: out_p})
                 out_p[node] = node_spec.call(sources)
@@ -95,33 +106,6 @@ def build_callable(dag: nx.DiGraph, local_source_name="graph_locals") -> Callabl
         return out_p
 
     return compute_from_params
-
-
-def draw_graph(dag: nx.DiGraph, targets: Optional[List[str]] = None):
-    """A basic plotting function for viewing the data flow in a graph
-
-    Args:
-        dag: A computegraph DiGraph
-        targets: A list of output nodes to mark with a separate colour
-    """
-    pos = nx.nx_agraph.graphviz_layout(dag, prog="dot")
-    node_specs = nx.get_node_attributes(dag, "node_spec")
-
-    labels = {k: k for k in dag}
-
-    if targets is None:
-        targets = []
-
-    def get_color(name, param):
-        if isinstance(param, Variable):
-            return "lightgreen"
-        elif name in targets:
-            return "#ee88ee"
-        else:
-            return "lightblue"
-
-    node_colors = [get_color(name, param) for name, param in node_specs.items()]
-    return nx.draw(dag, pos=pos, labels=labels, node_color=node_colors, width=0.4, node_size=500)
 
 
 """
@@ -141,8 +125,8 @@ class ComputeGraph:
         self.dag = build_dag(graph_dict, local_source_name)
         self.local_source_name = local_source_name
 
-    def draw(self, targets=None):
-        return draw_graph(self.dag, targets)
+    def draw(self, targets=None, **kwargs):
+        return draw_compute_graph(self.dag, targets, **kwargs)
 
-    def get_callable(self) -> Callable[[dict], Any]:
-        return build_callable(self.dag, self.local_source_name)
+    def get_callable(self, nested_params=False) -> Callable[[dict], Any]:
+        return build_callable(self.dag, self.local_source_name, nested_params)

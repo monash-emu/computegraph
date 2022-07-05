@@ -74,6 +74,9 @@ class Function:
     def __repr__(self):
         return f"Function: func={self.func}, args={self.args}, kwargs={self.kwargs})"
 
+    def __eq__(self, other):
+        return self.func == other.func and self.args == other.args and self.kwargs == other.kwargs
+
     def build_args(self, sources: dict) -> Tuple[tuple, dict]:
         from .utils import build_args
 
