@@ -80,14 +80,6 @@ def test_nested_graph():
     assert results["out_pop_sum"] == 10.0
 
 
-def test_build_and_draw_graph():
-    pop_dict = get_pop_dict()
-
-    pop_graph = ComputeGraph(pop_dict)
-
-    pop_graph.draw()
-
-
 def test_jax_jit():
     from jax import jit
 
