@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Set
 
 from computegraph import ComputeGraph
 from computegraph.types import Variable, Function, Data
@@ -16,14 +16,18 @@ def split_static_dynamic(
     base_runner = base_graph.get_callable()
     base_outvals = base_runner(**kwargs)
 
-    assignment_map, fixed_data = get_assignment_map(dyn_map, kwargs, base_outvals)
+    assignment_map = get_assignment_map(dyn_map)
 
-    dyn_dict = get_dynamic_graph_dict(graph_dict, dyn_map, assignment_map, fixed_data)
+    fixed_data = {}
+    for arg in dyn_map["fixed"]:
+        fixed_data[arg] = Data(base_outvals[arg])
+
+    dyn_dict = get_frozen_graph_dict(graph_dict, dyn_map["dyn"], assignment_map, fixed_data)
 
     return ComputeGraph(dyn_dict)
 
 
-def get_dynamic_mappings(cgraph, dynamic_inputs: List[Variable], targets):
+def get_dynamic_mappings(cgraph: ComputeGraph, dynamic_inputs: List[Variable], targets: List[str]):
     dag = cgraph.pdag
     marked_dyn = set()
 
@@ -43,6 +47,7 @@ def get_dynamic_mappings(cgraph, dynamic_inputs: List[Variable], targets):
 
     fixed_targets_p = fixed_targets.difference(marked_dyn.union(dynamic_input_nodenames))
 
+    # Actual non-input graph nodes
     all_nonp_nodes = set(cgraph.dag.nodes)
 
     fixed_targets = all_nonp_nodes.intersection(fixed_targets_p)
@@ -50,13 +55,13 @@ def get_dynamic_mappings(cgraph, dynamic_inputs: List[Variable], targets):
 
     # Static parameters to capture
     fixed_p = fixed_targets_p.difference(fixed_targets)
+    # FIXME: Doing a lot of messing around with this name splitting and joining...
     fixed_p = set([Variable(p.split(".")[1], p.split(".")[0]) for p in fixed_p])
-    # static_nodes = all_nodes.difference(marked_descendants)
 
-    return dict(dyn=dyn_targets, fixed=fixed_targets, fixed_p=fixed_p)
+    return dict(dyn=dyn_targets, fixed=fixed_targets, fixed_inputs=fixed_p)
 
 
-def get_assignment_map(dmap: dict, graph_inputs: dict, graph_outputs: dict) -> dict:
+def get_assignment_map(dmap: dict) -> dict:
     """Return an assignment_map of the kind consumed by reassign_func_sources
 
     Args:
@@ -66,23 +71,16 @@ def get_assignment_map(dmap: dict, graph_inputs: dict, graph_outputs: dict) -> d
         AssignmentMap
     """
 
-    # FIXME:
-
-    # Right now we just inject Data objects directly into the Function,
-    # but really, probably, they should be in the graph under their original names
-
     out_map = {}
     # FIXME: "fixed_p" implies 'fixed parameter', but let's call it fixed inputs or something...
-    for arg in dmap["fixed_p"]:
+
+    # Remap input variables such that they now look up the appropriate fixed graph_local
+    for arg in dmap["fixed_inputs"]:
         if arg.source not in out_map:
             out_map[arg.source] = {}
         out_map[arg.source][arg.name] = Variable(f"{arg.source}.{arg.name}", "graph_locals")
-    # FIXME: likewise - this are fixed output values, not just "fixed"... something
-    data_updates = {}
-    for arg in dmap["fixed"]:
-        data_updates[arg] = Data(graph_outputs[arg])
 
-    return out_map, data_updates
+    return out_map
 
 
 def reassign_func_sources(f: Function, assignment_map: dict) -> Function:
@@ -111,11 +109,24 @@ def reassign_func_sources(f: Function, assignment_map: dict) -> Function:
     return Function(f.func, new_args, new_kwargs)
 
 
-def get_dynamic_graph_dict(orig_dict, dmap, assignment_map, fixed_data):
+def get_frozen_graph_dict(
+    orig_dict: dict, dynamic_keys: Set[str], assignment_map: dict, fixed_data: dict
+) -> dict:
+    """Return a graph dict containing both fixed data and the requested dynamic nodes
+
+    Args:
+        orig_dict: The original fully dynamic graph dict
+        dynamic_keys: List of dynamic node keys to retain in the new dict
+        assignment_map: Output of get_assignment_map
+        fixed_data: Dict whose values are Data nodes
+
+    Returns:
+        Frozen (mixed static/dynamic) graph dict
+    """
     out_dict = {
         k: reassign_func_sources(v, assignment_map)
         for k, v in orig_dict.items()
-        if k in dmap["dyn"]
+        if k in dynamic_keys
     }
     out_dict.update(fixed_data)
     return out_dict
