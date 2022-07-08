@@ -1,7 +1,7 @@
 from typing import List
 
 from computegraph import ComputeGraph
-from computegraph.types import Variable, Function
+from computegraph.types import Variable, Function, Data
 
 import networkx as nx
 
@@ -15,20 +15,12 @@ def split_static_dynamic(
     dyn_map = get_dynamic_mappings(base_graph, dynamic_inputs, targets)
     base_runner = base_graph.get_callable()
     base_outvals = base_runner(**kwargs)
-    assignment_map = get_assignment_map(dyn_map)
-    dyn_dict = get_dynamic_graph_dict(graph_dict, dyn_map, assignment_map)
 
-    static_inputs = {"graph_locals": {}}
-    static_inputs["graph_locals"].update(
-        {k: v for k, v in base_outvals.items() if k in dyn_map["fixed"]}
-    )
+    assignment_map, fixed_data = get_assignment_map(dyn_map, kwargs, base_outvals)
 
-    for p in dyn_map["fixed_p"]:
-        if p.source not in static_inputs:
-            static_inputs[p.source] = {}
-        static_inputs[p.source][p.name] = kwargs[p.source][p.name]
+    dyn_dict = get_dynamic_graph_dict(graph_dict, dyn_map, assignment_map, fixed_data)
 
-    return ComputeGraph(dyn_dict), dyn_map, static_inputs
+    return ComputeGraph(dyn_dict)
 
 
 def get_dynamic_mappings(cgraph, dynamic_inputs: List[Variable], targets):
@@ -64,7 +56,7 @@ def get_dynamic_mappings(cgraph, dynamic_inputs: List[Variable], targets):
     return dict(dyn=dyn_targets, fixed=fixed_targets, fixed_p=fixed_p)
 
 
-def get_assignment_map(dmap: dict) -> dict:
+def get_assignment_map(dmap: dict, graph_inputs: dict, graph_outputs: dict) -> dict:
     """Return an assignment_map of the kind consumed by reassign_func_sources
 
     Args:
@@ -73,15 +65,24 @@ def get_assignment_map(dmap: dict) -> dict:
     Returns:
         AssignmentMap
     """
-    out_map = {"graph_locals": {}}
+
+    # FIXME:
+
+    # Right now we just inject Data objects directly into the Function,
+    # but really, probably, they should be in the graph under their original names
+
+    out_map = {}
+    # FIXME: "fixed_p" implies 'fixed parameter', but let's call it fixed inputs or something...
     for arg in dmap["fixed_p"]:
         if arg.source not in out_map:
             out_map[arg.source] = {}
-        out_map[arg.source][arg.name] = Variable(f"{arg.source}.{arg.name}", "fixed_inputs")
+        out_map[arg.source][arg.name] = Variable(f"{arg.source}.{arg.name}", "graph_locals")
+    # FIXME: likewise - this are fixed output values, not just "fixed"... something
+    data_updates = {}
     for arg in dmap["fixed"]:
-        out_map["graph_locals"][arg] = Variable(f"graph_locals.{arg}", "fixed_inputs")
+        data_updates[arg] = Data(graph_outputs[arg])
 
-    return out_map
+    return out_map, data_updates
 
 
 def reassign_func_sources(f: Function, assignment_map: dict) -> Function:
@@ -110,9 +111,11 @@ def reassign_func_sources(f: Function, assignment_map: dict) -> Function:
     return Function(f.func, new_args, new_kwargs)
 
 
-def get_dynamic_graph_dict(orig_dict, dmap, assignment_map):
-    return {
+def get_dynamic_graph_dict(orig_dict, dmap, assignment_map, fixed_data):
+    out_dict = {
         k: reassign_func_sources(v, assignment_map)
         for k, v in orig_dict.items()
         if k in dmap["dyn"]
     }
+    out_dict.update(fixed_data)
+    return out_dict

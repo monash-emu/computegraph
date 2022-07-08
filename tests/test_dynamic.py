@@ -9,12 +9,24 @@ def test_split_graph():
 
     pop_dict = get_pop_dict()
 
-    targets = ["out_pop"]
+    targets = ["out_pop", "pop_sum"]
     dynamic_inputs = [param("pop_scale")]
 
     parameters = {"pop_scale": 10.0, "iso": "AUS"}
 
-    split_static_dynamic(pop_dict, dynamic_inputs, targets, parameters=parameters)
+    static_cg = split_static_dynamic(pop_dict, dynamic_inputs, targets, parameters=parameters)
+
+    # Check that the graph contains all our targets
+    assert set(targets).issubset(set(static_cg.dict.keys()))
+
+    # Check that we only require the inputs that we specified above
+    assert static_cg.get_input_variables() == set(dynamic_inputs)
+
+    # Run the graph
+    out_dict = static_cg.get_callable()(parameters=parameters)
+
+    # Check for expected outputs
+    assert out_dict["pop_sum"] == 40.0
 
 
 def test_split_nested():
@@ -22,13 +34,28 @@ def test_split_nested():
     pop_dict = get_pop_dict()
 
     dynamic_inputs = [param("population.pop_scale")]
+    targets = ["out_pop_sum", "population.pop_sum"]
 
     nested_pop_dict = get_nested_graph_dict(
         pop_dict, "population", True, param_map={"parameters": {"iso": "iso"}}
     )
     nested_pop_dict["out_pop_sum"] = Function(sum, [local("population.out_pop")])
 
-    targets = ["out_pop_sum"]
-    params_nested = {"population": {"pop_scale": 10.0}, "iso": "AUS"}
+    parameters = {"population": {"pop_scale": 10.0}, "iso": "AUS"}
 
-    split_static_dynamic(nested_pop_dict, dynamic_inputs, targets, parameters=params_nested)
+    static_cg = split_static_dynamic(
+        nested_pop_dict, dynamic_inputs, targets, parameters=parameters
+    )
+
+    # Check that the graph contains all our targets
+    assert set(targets).issubset(set(static_cg.dict.keys()))
+
+    # Check that we only require the inputs that we specified above
+    assert static_cg.get_input_variables() == set(dynamic_inputs)
+
+    # Run the graph
+    out_dict = static_cg.get_callable()(parameters=parameters)
+
+    # Check for expected outputs
+    assert out_dict["population.pop_sum"] == 40.0
+    assert out_dict["out_pop_sum"] == 10.0

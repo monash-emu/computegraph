@@ -22,7 +22,7 @@ def build_dag(graph_dict: GraphDict, local_source_name="graph_locals") -> nx.DiG
     """
     dag = nx.digraph.DiGraph()
     for name, node_spec in graph_dict.items():
-        if not isinstance(node_spec, Function):
+        if not (isinstance(node_spec, Function) or isinstance(node_spec, Data)):
             raise TypeError("Invalid node type, expected Function or Data", node_spec)
         dag.add_node(name, node_spec=node_spec)
     trace_edges(dag, local_source_name)
