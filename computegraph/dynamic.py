@@ -1,16 +1,22 @@
-from typing import List, Set
+from __future__ import annotations
 
-from computegraph import ComputeGraph
-from computegraph.types import Variable, Function, Data
+from typing import List, Set, TYPE_CHECKING
+
 
 import networkx as nx
 
+from computegraph.types import Variable, Function, Data
 from computegraph.utils import is_var
+
+if TYPE_CHECKING:
+    from computegraph import ComputeGraph
 
 
 def split_static_dynamic(
     graph_dict: dict, dynamic_inputs: List[Variable], targets: List[str], **kwargs
-):
+) -> ComputeGraph:
+    from computegraph import ComputeGraph
+
     base_graph = ComputeGraph(graph_dict)
     dyn_map = get_dynamic_mappings(base_graph, dynamic_inputs, targets)
     base_runner = base_graph.get_callable()
@@ -19,15 +25,17 @@ def split_static_dynamic(
     assignment_map = get_assignment_map(dyn_map)
 
     fixed_data = {}
-    for arg in dyn_map["fixed"]:
+    for arg in dyn_map["fixed_data"]:
         fixed_data[arg] = Data(base_outvals[arg])
 
-    dyn_dict = get_frozen_graph_dict(graph_dict, dyn_map["dyn"], assignment_map, fixed_data)
+    dyn_dict = get_frozen_graph_dict(graph_dict, dyn_map["dynamic"], assignment_map, fixed_data)
 
     return ComputeGraph(dyn_dict)
 
 
-def get_dynamic_mappings(cgraph: ComputeGraph, dynamic_inputs: List[Variable], targets: List[str]):
+def get_dynamic_mappings(
+    cgraph: ComputeGraph, dynamic_inputs: List[Variable], targets: List[str]
+) -> dict:
     dag = cgraph.pdag
     marked_dyn = set()
 
@@ -58,7 +66,7 @@ def get_dynamic_mappings(cgraph: ComputeGraph, dynamic_inputs: List[Variable], t
     # FIXME: Doing a lot of messing around with this name splitting and joining...
     fixed_p = set([Variable(p.split(".")[1], p.split(".")[0]) for p in fixed_p])
 
-    return dict(dyn=dyn_targets, fixed=fixed_targets, fixed_inputs=fixed_p)
+    return dict(dynamic=dyn_targets, fixed_data=fixed_targets, fixed_inputs=fixed_p)
 
 
 def get_assignment_map(dmap: dict) -> dict:

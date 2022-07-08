@@ -1,9 +1,10 @@
-from typing import Callable, Any
+from typing import Callable, Any, List
 
 import networkx as nx
 
 from .types import Variable, Function, Data, GraphDict
 from .draw import draw_compute_graph
+from .dynamic import split_static_dynamic
 from .utils import expand_nested_dict, get_with_injected_parameters, get_input_variables
 
 """
@@ -137,6 +138,9 @@ class ComputeGraph:
 
     def draw(self, targets=None, **kwargs):
         return draw_compute_graph(self.pdag, targets, **kwargs)
+
+    def freeze(self, dynamic_inputs: List[Variable], targets: List[str], inputs: dict):
+        split_static_dynamic(self.dict, dynamic_inputs, targets, **inputs)
 
     def get_input_variables(self):
         return get_input_variables(self.dag)
