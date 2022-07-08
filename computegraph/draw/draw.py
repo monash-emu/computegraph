@@ -10,6 +10,7 @@ from .ngraph import get_traces
 
 def draw_compute_graph(dag: nx.DiGraph, targets: Optional[List[str]] = None, **kwargs):
     backend = options.drawing["backend"]
+
     if backend == "plotly":
         return draw_computegraph_plotly(dag, targets, **kwargs)
     if backend == "matplotlib":

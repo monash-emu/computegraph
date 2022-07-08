@@ -27,6 +27,11 @@ class Variable:
         return (self.name == other.name) and (self.source == other.source)
 
 
+class Data:
+    def __init__(self, data):
+        self.data = data
+
+
 def local(name: str) -> Variable:
     """Convenience function for returning a graph_locals variable
 
