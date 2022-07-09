@@ -1,6 +1,8 @@
+import pytest
 import numpy as np
 
-from computegraph.types import local, Function, param
+
+from computegraph.types import Variable, local, Function, param
 from computegraph.graph import ComputeGraph
 from computegraph.utils import get_nested_graph_dict
 
@@ -25,18 +27,25 @@ def get_pop_dict():
         }
 
     pop_dict = {}
-    pop_dict["iso"] = param("iso")
-    pop_dict["pop_scale"] = param("pop_scale")
     pop_dict["pop_df"] = Function(gen_data_dict)
-    pop_dict["country_pop"] = Function(getitem, [var("pop_df"), var("iso")])
+    pop_dict["country_pop"] = Function(getitem, [var("pop_df"), param("iso")])
     pop_dict["pop_stats"] = Function(
         lambda s: {"min": s.min(), "sum": s.sum()}, [var("country_pop")]
     )
     pop_dict["pop_sum"] = Function(getitem, [var("pop_stats"), "sum"])
     pop_dict["norm_pop"] = Function(np.divide, [var("country_pop"), var("pop_sum")])
-    pop_dict["out_pop"] = Function(np.multiply, [var("norm_pop"), var("pop_scale")])
+    pop_dict["out_pop"] = Function(np.multiply, [var("norm_pop"), param("pop_scale")])
 
     return pop_dict
+
+
+def test_invalid_graph():
+
+    bad_dict = {}
+    bad_dict["node"] = Variable("x", "testing")
+
+    with pytest.raises(TypeError):
+        ComputeGraph(bad_dict)
 
 
 def test_build_and_run_graph():
@@ -58,7 +67,9 @@ def test_nested_graph():
 
     pop_dict = get_pop_dict()
 
-    nested_pop_dict = get_nested_graph_dict(pop_dict, "population", {"iso": "iso"})
+    nested_pop_dict = get_nested_graph_dict(
+        pop_dict, "population", True, param_map={"parameters": {"iso": "iso"}}
+    )
 
     nested_pop_dict["out_pop_sum"] = Function(np.sum, [local("population.out_pop")])
 
@@ -80,21 +91,16 @@ def test_nested_graph():
     assert results["out_pop_sum"] == 10.0
 
 
-def test_build_and_draw_graph():
-    pop_dict = get_pop_dict()
-
-    pop_graph = ComputeGraph(pop_dict)
-
-    pop_graph.draw()
+def get_simple_jax_dict():
+    jdict = {}
+    jdict["out"] = Function(lambda x, y: x * y, [param("x"), param("y")])
+    return jdict
 
 
 def test_jax_jit():
     from jax import jit
 
-    jdict = {}
-    jdict["x"] = param("x")
-    jdict["y"] = param("y")
-    jdict["out"] = Function(lambda x, y: x * y, [local("x"), local("y")])
+    jdict = get_simple_jax_dict()
 
     jgraph = ComputeGraph(jdict)
     fcall = jit(jgraph.get_callable())
@@ -107,12 +113,9 @@ def test_jax_jit():
 def test_jax_jit_nested():
     from jax import jit
 
-    jdict = {}
-    jdict["x"] = param("x")
-    jdict["y"] = param("y")
-    jdict["out"] = Function(lambda x, y: x * y, [local("x"), local("y")])
+    jdict = get_simple_jax_dict()
 
-    nested_jdict = get_nested_graph_dict(jdict, "nested")
+    nested_jdict = get_nested_graph_dict(jdict, "nested", nest_inputs=True)
 
     jgraph = ComputeGraph(nested_jdict)
     fcall = jit(jgraph.get_callable(nested_params=True))

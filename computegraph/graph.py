@@ -1,10 +1,11 @@
-from typing import Callable, Any
+from typing import Callable, Any, List
 
 import networkx as nx
 
-from .types import Variable, Function, GraphDict
+from .types import Variable, Function, Data, GraphDict
 from .draw import draw_compute_graph
-from .utils import expand_nested_dict
+from .dynamic import split_static_dynamic
+from .utils import expand_nested_dict, get_with_injected_parameters, get_input_variables
 
 """
 Graph building functions
@@ -22,6 +23,8 @@ def build_dag(graph_dict: GraphDict, local_source_name="graph_locals") -> nx.DiG
     """
     dag = nx.digraph.DiGraph()
     for name, node_spec in graph_dict.items():
+        if not (isinstance(node_spec, Function) or isinstance(node_spec, Data)):
+            raise TypeError("Invalid node type, expected Function or Data", node_spec)
         dag.add_node(name, node_spec=node_spec)
     trace_edges(dag, local_source_name)
     return dag
@@ -71,7 +74,7 @@ Operations over built DiGraphs
 
 
 def build_callable(
-    dag: nx.DiGraph, local_source_name="graph_locals", nested_params=False
+    dag: nx.DiGraph, local_source_name="graph_locals", nested_params=True, include_inputs=False
 ) -> Callable[[dict], Any]:
     """Returns a callable Python function corresponding to this graph
 
@@ -101,8 +104,14 @@ def build_callable(
             elif isinstance(node_spec, Function):
                 sources.update({local_source_name: out_p})
                 out_p[node] = node_spec.call(sources)
+            elif isinstance(node_spec, Data):
+                out_p[node] = node_spec.data
             else:
                 raise Exception("Unsupported node type", node, node_spec, type(node_spec))
+
+        if include_inputs:
+            out_p.update({k: v for k, v in sources.items() if k != "graph_locals"})
+
         return out_p
 
     return compute_from_params
@@ -124,9 +133,17 @@ class ComputeGraph:
         """
         self.dag = build_dag(graph_dict, local_source_name)
         self.local_source_name = local_source_name
+        self.pdag = get_with_injected_parameters(self.dag)
+        self.dict = graph_dict
 
     def draw(self, targets=None, **kwargs):
-        return draw_compute_graph(self.dag, targets, **kwargs)
+        return draw_compute_graph(self.pdag, targets, **kwargs)
 
-    def get_callable(self, nested_params=False) -> Callable[[dict], Any]:
-        return build_callable(self.dag, self.local_source_name, nested_params)
+    def freeze(self, dynamic_inputs: List[Variable], targets: List[str], inputs: dict):
+        split_static_dynamic(self.dict, dynamic_inputs, targets, **inputs)
+
+    def get_input_variables(self):
+        return get_input_variables(self.dag)
+
+    def get_callable(self, nested_params=True, include_inputs=False) -> Callable[[dict], Any]:
+        return build_callable(self.dag, self.local_source_name, nested_params, include_inputs)
