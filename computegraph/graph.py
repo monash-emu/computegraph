@@ -140,7 +140,7 @@ class ComputeGraph:
         return draw_compute_graph(self.pdag, targets, **kwargs)
 
     def freeze(self, dynamic_inputs: List[Variable], targets: List[str], inputs: dict):
-        split_static_dynamic(self.dict, dynamic_inputs, targets, **inputs)
+        return split_static_dynamic(self.dict, dynamic_inputs, targets, **inputs)
 
     def get_input_variables(self):
         return get_input_variables(self.dag)
