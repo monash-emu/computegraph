@@ -648,7 +648,7 @@ plotting = ["pygraphviz", "matplotlib", "plotly"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7.0,<3.11"
-content-hash = "161355af18dbbfc8ec5d68547098dc823a4b779bf6fbefe48ada774e06fa58ac"
+content-hash = "a8cd8f004af8d48762bbbee94bf5d2fe7c823a763214d76bed082d7355a4f2b1"
 
 [metadata.files]
 absl-py = [
