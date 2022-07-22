@@ -86,9 +86,12 @@ def build_callable(
         The corresponding Python function for this graph
     """
 
+    ggen = nx.topological_sort(dag)
+
+    node_dict = {node: dag.nodes[node]["node_spec"] for node in ggen}
+
     def compute_from_params(**kwargs):
         out_p = {}
-        ggen = nx.topological_sort(dag)
 
         if nested_params:
             sources = {}
@@ -97,8 +100,8 @@ def build_callable(
         else:
             sources = kwargs.copy()
 
-        for node in ggen:
-            node_spec = dag.nodes[node]["node_spec"]
+        for node, node_spec in node_dict.items():  # ggen:
+            # node_spec = dag.nodes[node]["node_spec"]
             if isinstance(node_spec, Variable):
                 out_p[node] = sources[node_spec.source][node_spec.name]
             elif isinstance(node_spec, Function):
