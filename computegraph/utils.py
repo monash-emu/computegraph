@@ -63,7 +63,7 @@ def extract_variables(
             else:
                 return []
         else:
-            return [obj.name]
+            return [obj]
     elif isinstance(obj, Function):
         vars = [a for a in obj.args if is_var(a, source) and not should_exclude(a)]
         vars += [v for v in obj.kwargs.values() if is_var(v, source) and not should_exclude(v)]
@@ -94,9 +94,6 @@ def nested_key(k, layer):
 
 
 def get_nested_arg(arg, layer, nest_inputs, param_map):
-    # if is_var(arg, "graph_locals"):
-    #    return local(nested_key(arg.name, layer))
-    # elif is_var(arg, "parameters")
     if is_var(arg):
         out_key = nested_key(arg.name, layer)
         if not is_var(arg, "graph_locals"):
@@ -110,6 +107,13 @@ def get_nested_arg(arg, layer, nest_inputs, param_map):
         return arg
 
 
+def relabel_arg(arg, source, new_source):
+    if is_var(arg, source):
+        return Variable(arg.name, new_source)
+    else:
+        return arg
+
+
 def get_nested_func(f: Function, layer: str, nest_inputs: bool = False, param_map=None) -> Function:
     """
     Return a Function whose graph_local Variables are renamed to be nested within layer
@@ -119,17 +123,30 @@ def get_nested_func(f: Function, layer: str, nest_inputs: bool = False, param_ma
     new_args = []
     new_kwargs = {}
     for arg in f.args:
-        # if is_var(a, "graph_locals"):
-        #    new_args.append(local(nested_key(a.name, layer)))
-        # else:
-        #    new_args.append(a)
         new_args.append(get_nested_arg(arg, layer, nest_inputs, param_map))
     for k, arg in f.kwargs.items():
-        # if is_var(v, "graph_locals"):
-        #    new_kwargs[k] = local(nested_key(v.name, layer))
-        # else:
-        #    new_kwargs[k] = v
         new_kwargs[k] = get_nested_arg(arg, layer, nest_inputs, param_map)
+    return Function(f.func, new_args, new_kwargs)
+
+
+def get_relabelled_func(f: Function, source: str, new_source: str) -> Function:
+    """Return a Function where variables with source: source are relabelled as new_source
+
+    Args:
+        f (Function): The Function to relabel
+        source: Variable source to relabel
+        new_source: New label
+
+    Returns:
+        Function: The relabelled Function
+    """
+
+    new_args = []
+    new_kwargs = {}
+    for arg in f.args:
+        new_args.append(relabel_arg(arg, source, new_source))
+    for k, arg in f.kwargs.items():
+        new_kwargs[k] = relabel_arg(arg, source, new_source)
     return Function(f.func, new_args, new_kwargs)
 
 
@@ -159,11 +176,6 @@ def get_nested_graph_dict(
             new_dict[k_nest] = get_nested_func(v, layer, nest_inputs, param_map)
         elif is_var(v):
             new_dict[k_nest] = get_nested_arg(v, layer, nest_inputs, param_map)
-        #    if k in param_map:
-        #        new_key = param_map[k]
-        #        new_dict[k_nest] = param(new_key)
-        #    else:
-        #        new_dict[k_nest] = param(k_nest)
     return new_dict
 
 
