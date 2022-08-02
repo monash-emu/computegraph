@@ -74,7 +74,11 @@ Operations over built DiGraphs
 
 
 def build_callable(
-    dag: nx.DiGraph, local_source_name="graph_locals", nested_params=True, include_inputs=False
+    dag: nx.DiGraph,
+    local_source_name="graph_locals",
+    nested_params=True,
+    include_inputs=False,
+    out_keys=None,
 ) -> Callable[[dict], Any]:
     """Returns a callable Python function corresponding to this graph
 
@@ -117,7 +121,15 @@ def build_callable(
 
         return out_p
 
-    return compute_from_params
+    if out_keys is None:
+        return compute_from_params
+    else:
+
+        def compute_for_keys(**kwargs):
+            results = compute_from_params(**kwargs)
+            return {k: results[k] for k in out_keys}
+
+        return compute_for_keys
 
 
 """
@@ -148,5 +160,9 @@ class ComputeGraph:
     def get_input_variables(self):
         return get_input_variables(self.dag)
 
-    def get_callable(self, nested_params=True, include_inputs=False) -> Callable[[dict], Any]:
-        return build_callable(self.dag, self.local_source_name, nested_params, include_inputs)
+    def get_callable(
+        self, nested_params=True, include_inputs=False, out_keys=None
+    ) -> Callable[[dict], Any]:
+        return build_callable(
+            self.dag, self.local_source_name, nested_params, include_inputs, out_keys
+        )
