@@ -62,7 +62,7 @@ def trace_edges(dag: nx.DiGraph, local_source_name="graph_locals"):
                     source_node = find_source_node(dag, a)
                     dag.add_edge(source_node, node)
             for k, v in node_spec.kwargs.items():
-                if isinstance(a, Variable) and (a.source == local_source_name):
+                if isinstance(v, Variable) and (v.source == local_source_name):
                     # We have a nested key
                     source_node = find_source_node(dag, v)
                     dag.add_edge(source_node, node)
