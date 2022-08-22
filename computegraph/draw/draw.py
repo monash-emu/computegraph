@@ -3,7 +3,7 @@ from typing import Optional, List
 import networkx as nx
 
 from computegraph import options
-from computegraph.types import Variable, Function
+from computegraph.types import Variable, Function, Data
 
 from .ngraph import get_traces
 
@@ -63,7 +63,7 @@ def draw_computegraph_plotly(
     tab_str = "&nbsp;" * 4
 
     def get_node_desc(name, node_spec):
-        out_text = [name]
+        out_text = [str(name)]
         if isinstance(node_spec, Function):
             out_text += [str(node_spec.func)]
             out_text += ["args:"]
@@ -82,6 +82,8 @@ def draw_computegraph_plotly(
     def get_color(name, node_spec):
         if isinstance(node_spec, Variable):
             return "lightgreen"
+        elif isinstance(node_spec, Data):
+            return "red"
         elif name in targets:
             return "#ee88ee"
         else:
