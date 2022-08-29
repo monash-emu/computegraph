@@ -61,7 +61,10 @@ def get_simple_jax_dict():
 
 
 def test_jax_jit():
-    from jax import jit
+    try:
+        from jax import jit
+    except:
+        return
 
     jdict = get_simple_jax_dict()
 

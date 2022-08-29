@@ -7,6 +7,8 @@ import networkx as nx
 
 from .types import Variable, Function, Data, NodeSpec, GraphObject, local
 
+from re import match
+
 
 def defer(func: callable) -> Callable:
     """Simple wrapper to defer a function call as a Function object instead
@@ -224,19 +226,24 @@ def trace_func(f, arg_table, mapped_names):
     out_kwargs = {}
     for arg in f.args:
         if isinstance(arg, GraphObject):
-            var_name = _get_name(arg, mapped_names)
-            arg_table[var_name] = arg
-            out_args.append(local(var_name))
-            trace_object(arg, arg_table, mapped_names)
+            if is_var(arg, "graph_locals"):
+                out_args.append(arg)
+            else:
+                var_name = _get_name(arg, mapped_names)
+                arg_table[var_name] = arg
+                out_args.append(local(var_name))
+                trace_object(arg, arg_table, mapped_names)
         else:
             out_args.append(arg)
     for k, arg in f.kwargs.items():
         if isinstance(arg, GraphObject):
-
-            var_name = _get_name(arg, mapped_names)
-            arg_table[var_name] = arg
-            out_kwargs[k] = local(var_name)
-            trace_object(arg, arg_table, mapped_names)
+            if is_var(arg, "graph_locals"):
+                out_kwargs[k] = arg
+            else:
+                var_name = _get_name(arg, mapped_names)
+                arg_table[var_name] = arg
+                out_kwargs[k] = local(var_name)
+                trace_object(arg, arg_table, mapped_names)
         else:
             out_kwargs[k] = arg
 
@@ -283,16 +290,18 @@ def trace_with_named_keys(in_graph):
     return g, m
 
 
-def filter_graph(cg, targets=None, sources=None):
+def filter_graph(cg, targets=None, sources=None, exclude=None):
     """Return a ComputeGraph that contains all targets and all sources,
     and all their interdependencies, but no extraneous nodes.
     The graph will be computable - ie ancestors of sources (and their children)
     will be included
+    Any nodes dependant on exclude will be removed
 
     Args:
         cg: ComputeGraph to filter
         targets: Set or object convertable to set
         sources: Set or object convertable to set
+        exclude: Set or object convertable to set
 
     Raises:
         Exception: Requires at least one argument
@@ -300,33 +309,55 @@ def filter_graph(cg, targets=None, sources=None):
     Returns:
         The filtered ComputeGraph
     """
+    if not targets and not sources and not exclude:
+        raise Exception("At least one argument must be supplied")
+
+    if not exclude:
+        excluded = set()
+    else:
+        if isinstance(exclude, str):
+            exclude = set((exclude,))
+        exclude = set(exclude)
+        excluded = exclude.copy()
+        for n in exclude:
+            excluded = excluded.union(nx.descendants(cg.dag, n))
+
+    # We only have an exclude - return everything _except_ this
     if not targets and not sources:
-        raise Exception("At least one of targets, sources must be supplied")
+        nodes = set(cg.dag)
+    else:
+        if targets is None:
+            targets = set()
+        if sources is None:
+            sources = set()
+        if isinstance(targets, str):
+            targets = set((targets,))
+        if isinstance(sources, str):
+            sources = set((sources,))
 
-    if targets is None:
-        targets = set()
-    if sources is None:
-        sources = set()
-    if isinstance(targets, str):
-        targets = set((targets,))
-    if isinstance(sources, str):
-        sources = set((sources,))
+        targets = set(targets)
+        sources = set(sources)
 
-    targets = set(targets)
-    sources = set(sources)
+        nodes = targets.union(sources)
 
-    nodes = targets.union(sources)
+        for s in sources:
+            nodes = nodes.union(nx.descendants(cg.dag, s))
+        for n in list(nodes):
+            nodes = nodes.union(nx.ancestors(cg.dag, n))
 
-    for s in sources:
-        nodes = nodes.union(nx.descendants(cg.dag, s))
-    for n in list(nodes):
-        nodes = nodes.union(nx.ancestors(cg.dag, n))
+        for t in targets:
+            nodes = nodes.union(nx.ancestors(cg.dag, t))
 
-    for t in targets:
-        nodes = nodes.union(nx.ancestors(cg.dag, t))
+    nodes = nodes.difference(excluded)
 
     out_dict = {k: v for k, v in cg.dict.items() if k in nodes}
 
     from .graph import ComputeGraph
 
-    return ComputeGraph(out_dict, is_traced=True, targets=targets)
+    final_targets = targets.difference(excluded)
+
+    return ComputeGraph(out_dict, is_traced=True, targets=final_targets)
+
+
+def query(cg, pattern):
+    return [k for k in cg.dag if match(pattern, k)]

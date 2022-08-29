@@ -23,8 +23,23 @@ def get_graph_args(f):
     return out
 
 
-def freeze_graph(cg, targets, dyn_params, fixed_in_values):
-    dyn_sources = [p.node_name for p in dyn_params]
+def freeze_graph(cg: ComputeGraph, targets, dyn_sources, fixed_in_values: dict = None):
+    """
+
+    Args:
+        cg (_type_): _description_
+        targets (_type_): _description_
+        dyn_sources (_type_): _description_
+        fixed_in_values (optional): Dictionary of fixed values to compute as Data,
+            if not supplied, then a static graph to compute these later will be returned
+
+    Returns:
+        _type_: _description_
+    """
+
+    # Accept either a list of strings, or of Variables (or a mix)
+    dyn_sources = set([p.node_name if isinstance(p, Variable) else p for p in dyn_sources])
+
     target_anc = set()
     for t in targets:
         target_anc = target_anc.union(nx.ancestors(cg.dag, t))
@@ -51,19 +66,29 @@ def freeze_graph(cg, targets, dyn_params, fixed_in_values):
         req_dyn_inputs += [a.key for a in get_graph_args(v)]
     req_dyn_inputs
 
-    static_d = ComputeGraph(cgt_static, is_traced=True).get_callable(output_all=True)(
-        **fixed_in_values
-    )
-
-    mixed_d = cgt_dyn.copy()
+    static_targets = set()
     for k in req_dyn_inputs:
         if k not in cgt_dyn:
-            mixed_d[k] = Data(static_d[k])
+            static_targets.add(k)
 
     for k in targets:
-        if k not in mixed_d:
+        if k not in cgt_dyn:
+            static_targets.add(k)
+
+    static_cg = ComputeGraph(cgt_static, is_traced=True, targets=static_targets)
+    mixed_d = cgt_dyn.copy()
+
+    if fixed_in_values is not None:
+        static_d = static_cg.get_callable(output_all=True)(**fixed_in_values)
+        for k in static_targets:
             mixed_d[k] = Data(static_d[k])
 
-    frozen_cg = ComputeGraph(mixed_d, is_traced=True, targets=targets)
+        frozen_cg = ComputeGraph(mixed_d, is_traced=True, targets=targets)
+        return frozen_cg
+    else:
 
-    return frozen_cg
+        for k in static_targets:
+            mixed_d[k] = Variable(k, "static_inputs")
+
+        frozen_cg = ComputeGraph(mixed_d, is_traced=True, targets=targets)
+        return frozen_cg, static_cg

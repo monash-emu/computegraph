@@ -4,7 +4,7 @@ import networkx as nx
 
 from .types import Variable, Function, Data, GraphDict, GraphObject
 from .draw import draw_compute_graph
-from .utils import trace_with_named_keys, trace_object, get_input_variables
+from .utils import trace_with_named_keys, trace_object, get_input_variables, filter_graph, query
 
 """
 Graph building functions
@@ -148,7 +148,10 @@ class ComputeGraph:
         return draw_compute_graph(self.dag, targets, **kwargs)
 
     def freeze(
-        self, dynamic_inputs: List[Variable], input_variables: dict, targets: List[str] = None
+        self,
+        dynamic_inputs: List[Variable],
+        input_variables: dict = None,
+        targets: List[str] = None,
     ):
         from .dynamic import freeze_graph
 
@@ -156,6 +159,22 @@ class ComputeGraph:
             targets = self._targets
 
         return freeze_graph(self, targets, dynamic_inputs, input_variables)
+
+    def filter(self, targets=None, sources=None, exclude=None):
+        if targets is None and sources is None:
+            targets = self._targets
+        return filter_graph(self, targets, sources, exclude)
+
+    def query(self, pattern: str) -> List[str]:
+        """Return a list of keys from this graph which match the supplied regex pattern
+
+        Args:
+            pattern: Regex pattern
+
+        Returns:
+            List[str]: List of matching keys
+        """
+        return query(self, pattern)
 
     def get_input_variables(self):
         return get_input_variables(self.dag)

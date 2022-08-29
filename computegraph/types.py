@@ -11,8 +11,9 @@ from reprlib import repr as rrepr
 
 import numpy as np
 
-# from jax import numpy as fnp
-fnp = np
+from computegraph.jaxify import get_modules
+
+fnp = get_modules()["numpy"]
 
 
 class AbstractGraphObject(ABC):
@@ -23,47 +24,54 @@ class AbstractGraphObject(ABC):
         pass
 
 
+def _f(func_str):
+    fnp = get_modules()["numpy"]
+    return getattr(fnp, func_str)
+
+
 class GraphObject(AbstractGraphObject):
     def __add__(self, other):
-        return Function(fnp.add, [self, other])
+        return Function(_f("add"), [self, other])
 
     def __radd__(self, other):
-        return Function(fnp.add, [other, self])
+        return Function(_f("add"), [other, self])
 
     def __mul__(self, other):
-        return Function(fnp.multiply, [self, other])
+        return Function(_f("multiply"), [self, other])
 
     def __rmul__(self, other):
-        return Function(fnp.multiply, [other, self])
+        return Function(_f("multiply"), [other, self])
 
     def __sub__(self, other):
-        return Function(fnp.subtract, [self, other])
+        return Function(_f("subtract"), [self, other])
 
     def __rsub__(self, other):
-        return Function(fnp.subtract, [other, self])
+        return Function(_f("subtract"), [other, self])
 
     def __truediv__(self, other):
-        return Function(fnp.divide, (self, other))
+        return Function(_f("divide"), (self, other))
 
     def __rtruediv__(self, other):
-        return Function(fnp.divide, (other, self))
+        return Function(_f("divide"), (other, self))
 
     def __pow__(self, other):
-        return Function(fnp.power, (self, other))
+        return Function(_f("power"), (self, other))
 
     def __rpow__(self, other):
-        return Function(fnp.power, (self.other))
+        return Function(_f("power"), (self.other))
 
     def __getattr__(self, attr):
         try:
             np_attr = getattr(np, attr)
         except AttributeError:
-            raise AttributeError(f"No attribute {attr} available", self)
+            np_attr = None
+
         if isinstance(np_attr, np.ufunc):
+            fnp = get_modules()["numpy"]
             fnp_attr = getattr(fnp, attr)
             return lambda: Function(fnp_attr, [self])
         else:
-            raise AttributeError(f"No attribute {attr} available", self)
+            raise AttributeError(f"'GraphObject' object has no attribute '{attr}'")
 
 
 class Variable(GraphObject):
@@ -74,9 +82,12 @@ class Variable(GraphObject):
     """
 
     def __init__(self, key: str, source: str):
-        self.key = key
         self.source = source
-        self.node_name = f"{source}.{key}"
+        self.set_key(key)
+
+    def set_key(self, key):
+        self.key = key
+        self.node_name = f"{self.source}.{key}"
 
     def __hash__(self):
         return hash((self.key, self.source))
