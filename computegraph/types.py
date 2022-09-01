@@ -60,18 +60,28 @@ class GraphObject(AbstractGraphObject):
     def __rpow__(self, other):
         return Function(_f("power"), (self.other))
 
-    def __getattr__(self, attr):
-        try:
-            np_attr = getattr(np, attr)
-        except AttributeError:
-            np_attr = None
+    def __array_ufunc__(self, ufunc, method, *inputs, out=None, **kwargs):
+        fnp = get_modules()["numpy"]
+        fnp_attr = getattr(fnp, ufunc.__name__)
+        return Function(fnp_attr, inputs, kwargs)
 
-        if isinstance(np_attr, np.ufunc):
-            fnp = get_modules()["numpy"]
-            fnp_attr = getattr(fnp, attr)
-            return lambda: Function(fnp_attr, [self])
-        else:
-            raise AttributeError(f"'GraphObject' object has no attribute '{attr}'")
+    def __array_function__(self, func, types, *args, **kwargs):
+        fnp = get_modules()["numpy"]
+        fnp_attr = getattr(fnp, func.__name__)
+        return Function(fnp_attr, args, kwargs)
+
+    # def __getattr__(self, attr):
+    #     try:
+    #         np_attr = getattr(np, attr)
+    #     except AttributeError:
+    #         np_attr = None
+
+    #     if isinstance(np_attr, np.ufunc):
+    #         fnp = get_modules()["numpy"]
+    #         fnp_attr = getattr(fnp, attr)
+    #         return lambda: Function(fnp_attr, [self])
+    #     else:
+    #         raise AttributeError(f"'GraphObject' object has no attribute '{attr}'")
 
 
 class Variable(GraphObject):
@@ -214,13 +224,13 @@ def build_args(args: tuple, kwargs: dict, sources: dict) -> Tuple[Tuple, dict]:
     out_args = []
     for a in args:
         if isinstance(a, GraphObject):
-            out_args.append(evaluate_lazy(a, sources))
+            out_args.append(a.evaluate(**sources))
         else:
             out_args.append(a)
     out_kwargs = {}
     for k, v in kwargs.items():
         if isinstance(v, GraphObject):
-            out_kwargs[k] = evaluate_lazy(v, sources)
+            out_kwargs[k] = v.evaluate(**sources)
         else:
             out_kwargs[k] = v
     return out_args, out_kwargs

@@ -94,10 +94,7 @@ def build_callable(
         sources[local_source_name] = out_p
 
         for node, node_spec in node_dict.items():  # ggen:
-            if isinstance(node_spec, GraphObject):
-                out_p[node] = node_spec.evaluate(**sources)
-            else:
-                raise Exception("Unsupported node type", node, node_spec, type(node_spec))
+            out_p[node] = node_spec.evaluate(**sources)
 
         if include_inputs:
             out_p.update({k: v for k, v in sources.items() if k != "graph_locals"})
@@ -119,7 +116,12 @@ class ComputeGraph:
     """A thin object oriented wrapper around the graph management functions"""
 
     def __init__(
-        self, graph_dict: dict, local_source_name="graph_locals", is_traced=False, targets=None
+        self,
+        graph_dict: dict,
+        local_source_name="graph_locals",
+        is_traced=False,
+        targets=None,
+        validate_keys=True,
     ):
         """Build a fully traced DiGraph from the supplied dict
 
@@ -128,10 +130,10 @@ class ComputeGraph:
         """
         if isinstance(graph_dict, GraphObject):
             self._targets = ["out"]
-            graph_dict, _ = trace_with_named_keys({"out": graph_dict})
+            graph_dict, _ = trace_with_named_keys({"out": graph_dict}, validate_keys)
         elif not is_traced:
             self._targets = list(graph_dict.keys())
-            graph_dict, _ = trace_with_named_keys(graph_dict)
+            graph_dict, _ = trace_with_named_keys(graph_dict, validate_keys)
         else:
             self._targets = []
 

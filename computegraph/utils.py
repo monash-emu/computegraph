@@ -274,16 +274,17 @@ def assign(x):
     return x
 
 
-def trace_with_named_keys(in_graph):
+def trace_with_named_keys(in_graph, validate_keys=True):
     g = {}
     m = {}  # invert_dict(in_graph)
     for k, v in in_graph.items():
         g, m = trace_object(v, g, m)
 
-    for k in in_graph:
-        if k in g:
-            msg = f"Object with out key {k} already in graph"
-            raise KeyError(msg)
+    if validate_keys:
+        for k in in_graph:
+            if k in g:
+                msg = f"Object with out key {k} already in graph"
+                raise KeyError(msg)
 
     for k, v in in_graph.items():
         g[k] = Function(assign, [local(m[v])])
