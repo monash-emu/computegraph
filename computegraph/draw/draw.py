@@ -65,7 +65,7 @@ def draw_computegraph_plotly(
     def get_node_desc(name, node_spec):
         out_text = [str(name)]
         if isinstance(node_spec, Function):
-            out_text += [str(node_spec.func)]
+            out_text += [str(node_spec.func.__name__)]
             out_text += ["args:"]
             out_text += [f"{tab_str}{arg}" for arg in node_spec.args]
             out_text += ["kwargs:"]
