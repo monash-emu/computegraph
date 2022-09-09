@@ -140,6 +140,20 @@ def get_relabelled_func(f: Function, source: str, new_source: str) -> Function:
         new_kwargs[k] = relabel_arg(arg, source, new_source)
     return Function(f.func, new_args, new_kwargs)
 
+def relabel_tree(g: GraphObject, source: str, new_source: str) -> GraphObject:
+    if isinstance(g, Function):
+        f = g
+        new_args = []
+        new_kwargs = {}
+        for arg in f.args:
+            new_args.append(relabel_tree(arg, source, new_source))
+        for k, arg in f.kwargs.items():
+            new_kwargs[k] = relabel_tree(arg, source, new_source)
+        return Function(f.func, new_args, new_kwargs)
+    else:
+        return relabel_arg(g, source, new_source)
+
+
 
 def get_nested_graph_dict(
     pdict: dict, layer: str, nest_inputs: bool = False, param_map: dict = None

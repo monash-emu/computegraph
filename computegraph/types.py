@@ -70,6 +70,9 @@ class GraphObject(AbstractGraphObject):
         fnp_attr = getattr(fnp, func.__name__)
         return Function(fnp_attr, args, kwargs)
 
+    def __getitem__(self, idx):
+        return Function(lambda x, idx: x[idx], [self, idx])
+
     # def __getattr__(self, attr):
     #     try:
     #         np_attr = getattr(np, attr)
