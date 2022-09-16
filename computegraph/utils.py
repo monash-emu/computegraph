@@ -140,6 +140,7 @@ def get_relabelled_func(f: Function, source: str, new_source: str) -> Function:
         new_kwargs[k] = relabel_arg(arg, source, new_source)
     return Function(f.func, new_args, new_kwargs)
 
+
 def relabel_tree(g: GraphObject, source: str, new_source: str) -> GraphObject:
     if isinstance(g, Function):
         f = g
@@ -152,7 +153,6 @@ def relabel_tree(g: GraphObject, source: str, new_source: str) -> GraphObject:
         return Function(f.func, new_args, new_kwargs)
     else:
         return relabel_arg(g, source, new_source)
-
 
 
 def get_nested_graph_dict(
@@ -305,7 +305,7 @@ def trace_with_named_keys(in_graph, validate_keys=True):
     return g, m
 
 
-def filter_graph(cg, targets=None, sources=None, exclude=None):
+def filter_graph(cg, targets=None, sources=None, exclude=None, ptargets=None):
     """Return a ComputeGraph that contains all targets and all sources,
     and all their interdependencies, but no extraneous nodes.
     The graph will be computable - ie ancestors of sources (and their children)
@@ -317,6 +317,8 @@ def filter_graph(cg, targets=None, sources=None, exclude=None):
         targets: Set or object convertable to set
         sources: Set or object convertable to set
         exclude: Set or object convertable to set
+        ptargets: Set of prospective targets; they are not considered in calculating the graph
+                  itself, but will be marked as targets if present in the final graph
 
     Raises:
         Exception: Requires at least one argument
@@ -326,6 +328,9 @@ def filter_graph(cg, targets=None, sources=None, exclude=None):
     """
     if not targets and not sources and not exclude:
         raise Exception("At least one argument must be supplied")
+
+    if ptargets is None:
+        ptargets = set()
 
     if not exclude:
         excluded = set()
@@ -368,6 +373,9 @@ def filter_graph(cg, targets=None, sources=None, exclude=None):
     out_dict = {k: v for k, v in cg.dict.items() if k in nodes}
 
     from .graph import ComputeGraph
+
+    available_ptargets = nodes.intersection(ptargets)
+    targets = targets.union(available_ptargets)
 
     final_targets = targets.difference(excluded)
 

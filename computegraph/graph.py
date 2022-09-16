@@ -162,10 +162,12 @@ class ComputeGraph:
 
         return freeze_graph(self, targets, dynamic_inputs, input_variables)
 
-    def filter(self, targets=None, sources=None, exclude=None):
+    def filter(self, targets=None, sources=None, exclude=None, ptargets=None):
         if targets is None and sources is None:
             targets = self._targets
-        return filter_graph(self, targets, sources, exclude)
+        if ptargets is None:
+            ptargets = self._targets
+        return filter_graph(self, targets, sources, exclude, ptargets)
 
     def query(self, pattern: str) -> List[str]:
         """Return a list of keys from this graph which match the supplied regex pattern
