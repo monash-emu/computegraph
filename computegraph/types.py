@@ -65,7 +65,7 @@ class GraphObject(AbstractGraphObject):
         fnp_attr = getattr(fnp, ufunc.__name__)
         return Function(fnp_attr, inputs, kwargs)
 
-    def __array_function__(self, func, types, *args, **kwargs):
+    def __array_function__(self, func, types, args, kwargs):
         fnp = get_modules()["numpy"]
         fnp_attr = getattr(fnp, func.__name__)
         return Function(fnp_attr, args, kwargs)
