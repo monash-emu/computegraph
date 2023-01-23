@@ -66,6 +66,12 @@ Operations over built DiGraphs
 """
 
 
+class GraphRunError(BaseException):
+    def __init__(self, key, cause):
+        self.key = key
+        self.cause = cause
+
+
 def build_callable(
     dag: nx.DiGraph,
     targets=None,
@@ -94,7 +100,10 @@ def build_callable(
         sources[local_source_name] = out_p
 
         for node, node_spec in node_dict.items():  # ggen:
-            out_p[node] = node_spec.evaluate(**sources)
+            try:
+                out_p[node] = node_spec.evaluate(**sources)
+            except Exception as e:
+                raise GraphRunError(node, e)
 
         if include_inputs:
             out_p.update({k: v for k, v in sources.items() if k != "graph_locals"})
@@ -166,7 +175,7 @@ class ComputeGraph:
         if targets is None and sources is None:
             targets = self._targets
         if ptargets is None:
-            ptargets = self._targets
+            ptargets = targets
         return filter_graph(self, targets, sources, exclude, ptargets)
 
     def query(self, pattern: str) -> List[str]:

@@ -277,6 +277,8 @@ def trace_object(obj, arg_table=None, mapped_names=None):
     elif isinstance(obj, Data):
         var_name = _get_name(obj, mapped_names)
         arg_table[var_name] = obj
+    else:
+        raise TypeError("Not a GraphObject", obj)
     return arg_table, mapped_names
 
 
