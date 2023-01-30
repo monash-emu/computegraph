@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Set, TYPE_CHECKING
 
-
+from collections import namedtuple
 import networkx as nx
 
 from computegraph.types import Variable, Function, Data, GraphObject
@@ -23,7 +23,12 @@ def get_graph_args(f):
     return out
 
 
-def freeze_graph(cg: ComputeGraph, targets, dyn_sources, fixed_in_values: dict = None):
+SplitGraph = namedtuple("SplitGraph", ("frozen", "static"))
+
+
+def freeze_graph(
+    cg: ComputeGraph, targets, dyn_sources, fixed_in_values: dict = None
+) -> SplitGraph:
     """
 
     Args:
@@ -84,11 +89,11 @@ def freeze_graph(cg: ComputeGraph, targets, dyn_sources, fixed_in_values: dict =
             mixed_d[k] = Data(static_d[k])
 
         frozen_cg = ComputeGraph(mixed_d, is_traced=True, targets=targets)
-        return frozen_cg
+        return SplitGraph(frozen_cg, None)
     else:
 
         for k in static_targets:
             mixed_d[k] = Variable(k, "static_inputs")
 
         frozen_cg = ComputeGraph(mixed_d, is_traced=True, targets=targets)
-        return frozen_cg, static_cg
+        return SplitGraph(frozen_cg, static_cg)

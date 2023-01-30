@@ -269,6 +269,10 @@ def trace_func(f, arg_table, mapped_names):
 def trace_object(obj, arg_table=None, mapped_names=None):
     arg_table = arg_table or {}
     mapped_names = mapped_names or {}
+
+    if not isinstance(obj, GraphObject):
+        obj = Data(obj)
+
     if isinstance(obj, Function):
         trace_func(obj, arg_table, mapped_names)
     elif isinstance(obj, Variable):
@@ -293,6 +297,12 @@ def assign(x):
 def trace_with_named_keys(in_graph, validate_keys=True):
     g = {}
     m = {}  # invert_dict(in_graph)
+
+    def _as_graphobj(x):
+        return x if isinstance(x, GraphObject) else Data(x)
+
+    in_graph = {k: _as_graphobj(v) for k, v in in_graph.items()}
+
     for k, v in in_graph.items():
         g, m = trace_object(v, g, m)
 

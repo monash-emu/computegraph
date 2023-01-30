@@ -73,6 +73,11 @@ class GraphObject(AbstractGraphObject):
     def __getitem__(self, idx):
         return Function(lambda x, idx: x[idx], [self, idx])
 
+    def __iter__(self):
+        # Without this we get stuck in infinite __getitem__ loops when containers
+        # attempt to iterate on GraphObjects
+        raise TypeError(f"{type(self)} object is not iterable")
+
     # def __getattr__(self, attr):
     #     try:
     #         np_attr = getattr(np, attr)
@@ -182,6 +187,12 @@ class Function(GraphObject):
             raise TypeError("Args must be list or tuple", args)
         self.args = tuple(args)
         self.kwargs = kwargs
+        self._validate_args()
+
+    def _validate_args(self):
+        _data_wrap = lambda x: x if isinstance(x, Hashable) else Data(x)
+        self.args = tuple([_data_wrap(a) for a in self.args])
+        self.kwargs = {k: _data_wrap(v) for k, v in self.kwargs.items()}
 
     def __hash__(self):
         return hash((self.func, self.args, tuple(self.kwargs.items())))

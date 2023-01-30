@@ -203,3 +203,6 @@ class ComputeGraph:
                 targets = self._targets
 
         return build_callable(self.dag, targets, include_inputs, self.local_source_name)
+
+    def __getitem__(self, key):
+        return self.dag.nodes[key]["node_spec"]

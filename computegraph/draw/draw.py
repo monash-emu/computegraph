@@ -4,6 +4,7 @@ import networkx as nx
 
 from computegraph import options
 from computegraph.types import Variable, Function, Data
+from computegraph.utils import assign
 
 from .ngraph import get_traces
 
@@ -62,19 +63,28 @@ def draw_computegraph_plotly(
 
     tab_str = "&nbsp;" * 4
 
-    def get_node_desc(name, node_spec):
-        out_text = [str(name)]
+    def get_label_and_desc(name, node_spec):
+        out_text = [name]
         if isinstance(node_spec, Function):
+            if node_spec.func is assign:
+                label = name
+            else:
+                label = str(node_spec.func.__name__)
             out_text += [str(node_spec.func.__name__)]
+            out_text += ["node name:"]
+            out_text = [str(name)]
             out_text += ["args:"]
             out_text += [f"{tab_str}{arg}" for arg in node_spec.args]
             out_text += ["kwargs:"]
             out_text += [f"{tab_str}{k}: {v}" for k, v in node_spec.kwargs.items()]
         else:
             out_text += [str(node_spec)]
-        return "<br>".join(out_text)
+            label = name
+        return label, "<br>".join(out_text)
 
-    desc = [get_node_desc(name, node_spec) for name, node_spec in node_specs.items()]
+    labels, desc = zip(
+        *[get_label_and_desc(name, node_spec) for name, node_spec in node_specs.items()]
+    )
 
     if targets is None:
         targets = []
