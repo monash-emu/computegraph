@@ -45,7 +45,9 @@ def draw_compute_graph_mpl(dag: nx.DiGraph, targets: Optional[List[str]] = None,
             return "lightblue"
 
     node_colors = [get_color(name, param) for name, param in node_specs.items()]
-    return nx.draw(dag, pos=pos, labels=labels, node_color=node_colors, width=0.4, node_size=500)
+    return nx.draw(
+        dag, pos=pos, labels=labels, node_color=node_colors, width=0.4, node_size=500, **kwargs
+    )
 
 
 def draw_computegraph_plotly(
