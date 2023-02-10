@@ -2,37 +2,28 @@
 Utility functions
 """
 
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any, Callable
 import networkx as nx
 
-from .types import Variable, Function, NodeSpec
+from .types import Variable, Function, Data, NodeSpec, GraphObject, local
+
+from re import match
 
 
-def build_args(args: tuple, kwargs: dict, sources: dict) -> Tuple[Tuple, dict]:
-    """Return a realised args,kwargs pair containing
-    actual values used a computation, based on their NodeSpec descriptions
+def defer(func: callable) -> Callable:
+    """Simple wrapper to defer a function call as a Function object instead
+    e.g.
+    defer(lambda x,y: x**y)(5.1, param("y"))
+    returns a Function that lazily evaluates on param("y")
 
     Args:
-        args: Args tuple containing either Variables or Python data
-        kwargs: Kwargs dict containing either Variables or Python data
-        sources: Dictionary of dictionaries containing the lookup values for Variables
-
-    Returns:
-        Realised (args, kwargs) tuple for use in a function call
+        func: Callable to defer
     """
-    out_args = []
-    for a in args:
-        if isinstance(a, Variable):
-            out_args.append(sources[a.source][a.name])
-        else:
-            out_args.append(a)
-    out_kwargs = {}
-    for k, v in kwargs.items():
-        if isinstance(v, Variable):
-            out_kwargs[k] = sources[v.source][v.name]
-        else:
-            out_kwargs[k] = v
-    return out_args, out_kwargs
+
+    def wrapped_maker(*args, **kwargs):
+        return Function(func, args, kwargs)
+
+    return wrapped_maker
 
 
 def extract_variables(
@@ -95,13 +86,13 @@ def nested_key(k, layer):
 
 def get_nested_arg(arg, layer, nest_inputs, param_map):
     if is_var(arg):
-        out_key = nested_key(arg.name, layer)
+        out_key = nested_key(arg.key, layer)
         if not is_var(arg, "graph_locals"):
             if not nest_inputs:
-                out_key = arg.name
+                out_key = arg.key
             if arg.source in param_map:
-                if arg.name in param_map[arg.source]:
-                    out_key = param_map[arg.source][arg.name]
+                if arg.key in param_map[arg.source]:
+                    out_key = param_map[arg.source][arg.key]
         return Variable(out_key, arg.source)
     else:
         return arg
@@ -109,7 +100,7 @@ def get_nested_arg(arg, layer, nest_inputs, param_map):
 
 def relabel_arg(arg, source, new_source):
     if is_var(arg, source):
-        return Variable(arg.name, new_source)
+        return Variable(arg.key, new_source)
     else:
         return arg
 
@@ -148,6 +139,20 @@ def get_relabelled_func(f: Function, source: str, new_source: str) -> Function:
     for k, arg in f.kwargs.items():
         new_kwargs[k] = relabel_arg(arg, source, new_source)
     return Function(f.func, new_args, new_kwargs)
+
+
+def relabel_tree(g: GraphObject, source: str, new_source: str) -> GraphObject:
+    if isinstance(g, Function):
+        f = g
+        new_args = []
+        new_kwargs = {}
+        for arg in f.args:
+            new_args.append(relabel_tree(arg, source, new_source))
+        for k, arg in f.kwargs.items():
+            new_kwargs[k] = relabel_tree(arg, source, new_source)
+        return Function(f.func, new_args, new_kwargs)
+    else:
+        return relabel_arg(g, source, new_source)
 
 
 def get_nested_graph_dict(
@@ -217,20 +222,177 @@ def get_input_variables(dag: nx.DiGraph):
     return set(found_params)
 
 
-def get_with_injected_parameters(dag):
-    out_dag = dag.copy()
-    found_params = []
-    pmap = {}
-    node_specs = nx.get_node_attributes(dag, "node_spec")
-    for k, v in node_specs.items():
-        param_for_node = extract_variables(v)
-        pmap[k] = param_for_node
-        found_params += param_for_node
+def _get_name(obj, mapped_names):
+    if obj not in mapped_names:
+        var_name = obj.node_name or f"_var{len(mapped_names)}"
+        if var_name in mapped_names.values():
+            existing = invert_dict(mapped_names)[var_name]
+            msg = f"Object with {var_name} already exists in mapping"
+            raise KeyError(msg, obj, existing)
+        mapped_names[obj] = var_name
+    else:
+        var_name = mapped_names[obj]
+    return var_name
 
-    found_params = set(found_params)
-    for p in found_params:
-        out_dag.add_node(f"{p.source}.{p.name}", node_spec=p)
-    for k, v in pmap.items():
-        for p in v:
-            out_dag.add_edge(f"{p.source}.{p.name}", k)
-    return out_dag
+
+def trace_func(f, arg_table, mapped_names):
+    out_args = []
+    out_kwargs = {}
+    for arg in f.args:
+        if isinstance(arg, GraphObject):
+            if is_var(arg, "graph_locals"):
+                out_args.append(arg)
+            else:
+                var_name = _get_name(arg, mapped_names)
+                arg_table[var_name] = arg
+                out_args.append(local(var_name))
+                trace_object(arg, arg_table, mapped_names)
+        else:
+            out_args.append(arg)
+    for k, arg in f.kwargs.items():
+        if isinstance(arg, GraphObject):
+            if is_var(arg, "graph_locals"):
+                out_kwargs[k] = arg
+            else:
+                var_name = _get_name(arg, mapped_names)
+                arg_table[var_name] = arg
+                out_kwargs[k] = local(var_name)
+                trace_object(arg, arg_table, mapped_names)
+        else:
+            out_kwargs[k] = arg
+
+    var_name = _get_name(f, mapped_names)
+    arg_table[var_name] = Function(f.func, tuple(out_args), out_kwargs)
+    arg_table[var_name].node_name = f.node_name
+
+
+def trace_object(obj, arg_table=None, mapped_names=None):
+    arg_table = arg_table or {}
+    mapped_names = mapped_names or {}
+
+    if not isinstance(obj, GraphObject):
+        obj = Data(obj)
+
+    if isinstance(obj, Function):
+        trace_func(obj, arg_table, mapped_names)
+    elif isinstance(obj, Variable):
+        var_name = _get_name(obj, mapped_names)
+        arg_table[var_name] = obj
+    elif isinstance(obj, Data):
+        var_name = _get_name(obj, mapped_names)
+        arg_table[var_name] = obj
+    else:
+        raise TypeError("Not a GraphObject", obj)
+    return arg_table, mapped_names
+
+
+def invert_dict(d):
+    return {v: k for k, v in d.items()}
+
+
+def assign(x):
+    return x
+
+
+def trace_with_named_keys(in_graph, validate_keys=True):
+    g = {}
+    m = {}  # invert_dict(in_graph)
+
+    def _as_graphobj(x):
+        return x if isinstance(x, GraphObject) else Data(x)
+
+    in_graph = {k: _as_graphobj(v) for k, v in in_graph.items()}
+
+    for k, v in in_graph.items():
+        g, m = trace_object(v, g, m)
+
+    if validate_keys:
+        for k in in_graph:
+            if k in g:
+                msg = f"Object with out key {k} already in graph"
+                raise KeyError(msg)
+
+    for k, v in in_graph.items():
+        g[k] = Function(assign, [local(m[v])])
+    return g, m
+
+
+def filter_graph(cg, targets=None, sources=None, exclude=None, ptargets=None):
+    """Return a ComputeGraph that contains all targets and all sources,
+    and all their interdependencies, but no extraneous nodes.
+    The graph will be computable - ie ancestors of sources (and their children)
+    will be included
+    Any nodes dependant on exclude will be removed
+
+    Args:
+        cg: ComputeGraph to filter
+        targets: Set or object convertable to set
+        sources: Set or object convertable to set
+        exclude: Set or object convertable to set
+        ptargets: Set of prospective targets; they are not considered in calculating the graph
+                  itself, but will be marked as targets if present in the final graph
+
+    Raises:
+        Exception: Requires at least one argument
+
+    Returns:
+        The filtered ComputeGraph
+    """
+    if not targets and not sources and not exclude:
+        raise Exception("At least one argument must be supplied")
+
+    if ptargets is None:
+        ptargets = set()
+
+    if not exclude:
+        excluded = set()
+    else:
+        if isinstance(exclude, str):
+            exclude = set((exclude,))
+        exclude = set(exclude)
+        excluded = exclude.copy()
+        for n in exclude:
+            excluded = excluded.union(nx.descendants(cg.dag, n))
+
+    # We only have an exclude - return everything _except_ this
+    if not targets and not sources:
+        nodes = set(cg.dag)
+    else:
+        if targets is None:
+            targets = set()
+        if sources is None:
+            sources = set()
+        if isinstance(targets, str):
+            targets = set((targets,))
+        if isinstance(sources, str):
+            sources = set((sources,))
+
+        targets = set(targets)
+        sources = set(sources)
+
+        nodes = targets.union(sources)
+
+        for s in sources:
+            nodes = nodes.union(nx.descendants(cg.dag, s))
+        for n in list(nodes):
+            nodes = nodes.union(nx.ancestors(cg.dag, n))
+
+        for t in targets:
+            nodes = nodes.union(nx.ancestors(cg.dag, t))
+
+    nodes = nodes.difference(excluded)
+
+    out_dict = {k: v for k, v in cg.dict.items() if k in nodes}
+
+    from .graph import ComputeGraph
+
+    available_ptargets = nodes.intersection(ptargets)
+    targets = targets.union(available_ptargets)
+
+    final_targets = targets.difference(excluded)
+
+    return ComputeGraph(out_dict, is_traced=True, targets=final_targets)
+
+
+def query(cg, pattern):
+    return [k for k in cg.dag if match(pattern, k)]

@@ -1,5 +1,7 @@
-from computegraph.types import Function, local
-from computegraph.utils import expand_nested_dict, get_nested_func
+import pytest
+
+from computegraph.types import Function, local, Data
+from computegraph.utils import expand_nested_dict, get_nested_func, trace_with_named_keys
 
 
 def test_expand_nested_dict():
@@ -38,3 +40,21 @@ def test_get_nested_func():
     f_nested_expected = Function(add_xy, [local("nested.x"), local("nested.y")])
 
     assert f_nested == f_nested_expected
+
+
+def test_trace_duplicate_nodename():
+    thing = Data(5.1)
+    thing.node_name = "shoes"
+    thing2 = Data(10.1)
+    thing2.node_name = "shoes"
+
+    with pytest.raises(KeyError):
+        trace_with_named_keys({"t": thing, "t1": thing2})
+
+
+def test_trace_outkey_shadows_nodename():
+    thing = Data(5.1)
+    thing.node_name = "shoes"
+
+    with pytest.raises(KeyError):
+        trace_with_named_keys({"shoes": thing})
