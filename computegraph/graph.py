@@ -94,7 +94,6 @@ def build_callable(
 
     def compute_from_params(**sources):
         out_p = {}
-
         # sources = kwargs.copy()
 
         sources[local_source_name] = out_p
