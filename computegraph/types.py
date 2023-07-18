@@ -16,6 +16,11 @@ from computegraph.jaxify import get_modules
 fnp = get_modules()["numpy"]
 
 
+# Helper for indexing function
+def getitem(obj, index):
+    return obj[index]
+
+
 class AbstractGraphObject(ABC):
     node_name = None
 
@@ -71,12 +76,17 @@ class GraphObject(AbstractGraphObject):
         return Function(fnp_attr, args, kwargs)
 
     def __getitem__(self, idx):
-        return Function(lambda x, idx: x[idx], [self, idx])
+        return Function(getitem, [self, idx])
 
     def __iter__(self):
         # Without this we get stuck in infinite __getitem__ loops when containers
         # attempt to iterate on GraphObjects
         raise TypeError(f"{type(self)} object is not iterable")
+
+    def get_graph(self):
+        from .graph import ComputeGraph
+
+        return ComputeGraph(self)
 
     # def __getattr__(self, attr):
     #     try:
@@ -124,8 +134,9 @@ class Variable(GraphObject):
 
 
 class Data(GraphObject):
-    def __init__(self, data):
+    def __init__(self, data, name=None):
         self.data = data
+        self.node_name = name
 
     def __repr__(self):
         return f"Data: {rrepr(self.data)}"
@@ -177,7 +188,7 @@ class Function(GraphObject):
     (regarded as constant)
     """
 
-    def __init__(self, func: callable, args: tuple = None, kwargs: dict = None):
+    def __init__(self, func: callable, args: tuple = None, kwargs: dict = None, name=None):
         self.func = func
         if args is None:
             args = ()
@@ -188,6 +199,7 @@ class Function(GraphObject):
         self.args = tuple(args)
         self.kwargs = kwargs
         self._validate_args()
+        self.node_name = name
 
     def _validate_args(self):
         _data_wrap = lambda x: x if isinstance(x, Hashable) else Data(x)

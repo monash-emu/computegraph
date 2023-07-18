@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "computegraph"
-version = "0.4.2"
+version = "0.4.3"
 readme = "README.md"
 license = "BSD-2-Clause"
 homepage = "https://github.com/monash-emu/computegraph"

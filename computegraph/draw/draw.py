@@ -53,7 +53,6 @@ def draw_compute_graph_mpl(dag: nx.DiGraph, targets: Optional[List[str]] = None,
 def draw_computegraph_plotly(
     dag: nx.DiGraph, targets: Optional[List[str]] = None, title: str = None, **kwargs
 ):
-
     if options.drawing["use_graphviz"]:
         pos = nx.nx_agraph.graphviz_layout(dag, prog="dot")
     else:
@@ -70,11 +69,12 @@ def draw_computegraph_plotly(
         if isinstance(node_spec, Function):
             if node_spec.func is assign:
                 label = name
-            else:
+            elif name.startswith("_"):
                 label = str(node_spec.func.__name__)
+            else:
+                label = name
+            out_text += ["function:"]
             out_text += [str(node_spec.func.__name__)]
-            out_text += ["node name:"]
-            out_text = [str(name)]
             out_text += ["args:"]
             out_text += [f"{tab_str}{arg}" for arg in node_spec.args]
             out_text += ["kwargs:"]

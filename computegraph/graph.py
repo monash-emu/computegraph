@@ -205,3 +205,7 @@ class ComputeGraph:
 
     def __getitem__(self, key):
         return self.dag.nodes[key]["node_spec"]
+
+    def items(self):
+        for key, node_spec in self.dag.nodes.items():
+            yield (key, node_spec["node_spec"])
