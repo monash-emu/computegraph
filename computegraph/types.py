@@ -194,6 +194,12 @@ class Function(GraphObject):
             args = ()
         if kwargs is None:
             kwargs = {}
+
+        from .utils import expand_nested_graphobjs
+
+        args = tuple([expand_nested_graphobjs(item) for item in args])
+        kwargs = {k: expand_nested_graphobjs(v) for k, v in kwargs.items()}
+
         if not (isinstance(args, tuple) or isinstance(args, list)):
             raise TypeError("Args must be list or tuple", args)
         self.args = tuple(args)
