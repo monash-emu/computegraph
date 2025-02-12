@@ -6,7 +6,6 @@ The current jax status is stored in the environment variable SUMMER_USE_JAX
 Other modules should interact with this solely via set_using_jax and get_using_jax
 """
 
-
 import warnings
 import os
 
@@ -18,18 +17,18 @@ import scipy
 try:
     from jax import numpy as jnp
     from jax import scipy as jsp
-    from jax.config import config as _jax_config
+    import jax
 
     # Jax configuration
     # FIXME: We need to find a more appropriate place to ensure this happens globally
-    _jax_config.update("jax_platform_name", "cpu")
-    _jax_config.update("jax_enable_x64", True)
+    jax.config.update("jax_platform_name", "cpu")
+    jax.config.update("jax_enable_x64", True)
 
     N_CORES = os.cpu_count()
 
-    os.environ[
-        "XLA_FLAGS"
-    ] = f"--xla_force_host_platform_device_count={N_CORES} --xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
+    os.environ["XLA_FLAGS"] = (
+        f"--xla_force_host_platform_device_count={N_CORES} --xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
+    )
 
     Array = Union[jnp.ndarray, np.ndarray]
 
