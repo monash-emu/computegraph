@@ -71,7 +71,7 @@ def get_modules() -> dict:
     Returns:
         A dictionary of modules
     """
-    use_jax = get_using_jax()
+    use_jax = True  # sing_jax()
     if use_jax:
         return {"numpy": jnp, "scipy": jsp}
     else:
